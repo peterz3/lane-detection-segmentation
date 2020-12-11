@@ -1,0 +1,1 @@
+{"model_class": "segnet", "n_classes": 2, "input_height": 720, "input_width": 1280, "output_height": 360, "output_width": 640}
