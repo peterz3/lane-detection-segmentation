@@ -8,6 +8,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 from time import time
+import argparse
+import sys
 
 from train import find_latest_checkpoint
 from data_utils.data_loader import get_image_array, get_segmentation_array,\
@@ -20,7 +22,7 @@ random.seed(DATA_LOADER_SEED)
 
 def model_from_checkpoint_path(checkpoints_path):
 
-    from .models.all_models import model_from_name
+    from models.all_models import model_from_name
     assert (os.path.isfile(checkpoints_path+"_config.json")
             ), "Checkpoint not found."
     model_config = json.loads(
@@ -35,17 +37,25 @@ def model_from_checkpoint_path(checkpoints_path):
     return model
 
 
-def get_colored_segmentation_image(seg_arr, n_classes, colors=class_colors):
+def get_colored_segmentation_image(seg_arr,inp, n_classes, colors=class_colors):
     output_height = seg_arr.shape[0]
     output_width = seg_arr.shape[1]
-
-    seg_img = np.zeros((output_height, output_width, 3))
+    #seg_img = np.zeros((output_height, output_width, 3))
+    print(type(inp))
+    from PIL import Image
+    seg_img = cv2.resize(inp, (output_width, output_height))
 
     for c in range(n_classes):
-        seg_arr_c = seg_arr[:, :] == c
-        seg_img[:, :, 0] += ((seg_arr_c)*(colors[c][0])).astype('uint8')
-        seg_img[:, :, 1] += ((seg_arr_c)*(colors[c][1])).astype('uint8')
-        seg_img[:, :, 2] += ((seg_arr_c)*(colors[c][2])).astype('uint8')
+        if(c==1):
+            seg_arr_c = seg_arr[:, :] == c
+            for i in range(seg_arr_c.shape[0]):
+                for j in range(seg_arr_c.shape[1]):
+                    if(seg_arr_c[i][j]):
+                        seg_img[i, j, :] = colors[c]
+            #print(seg_arr_c)
+            #seg_img[:, :, 0] += ((seg_arr_c)*(colors[c][0])).astype('uint8')
+            #seg_img[:, :, 1] += ((seg_arr_c)*(colors[c][1])).astype('uint8')
+            #seg_img[:, :, 2] += ((seg_arr_c)*(colors[c][2])).astype('uint8')
 
     return seg_img
 
@@ -99,8 +109,7 @@ def visualize_segmentation(seg_arr, inp_img=None, n_classes=None,
     if n_classes is None:
         n_classes = np.max(seg_arr)
 
-    seg_img = get_colored_segmentation_image(seg_arr, n_classes, colors=colors)
-
+    seg_img = get_colored_segmentation_image(seg_arr, inp_img , n_classes, colors=colors)
     if inp_img is not None:
         original_h = inp_img.shape[0]
         original_w = inp_img.shape[1]
@@ -111,6 +120,9 @@ def visualize_segmentation(seg_arr, inp_img=None, n_classes=None,
         if inp_img is not None:
             inp_img = cv2.resize(inp_img,
                                  (prediction_width, prediction_height))
+    #seg_img = get_colored_segmentation_image(seg_arr, n_classes, colors=colors)
+    #cv2.imwrite("path_to_predictions/temp.png", seg_img)
+    #seg_img = overlay_seg_image(inp_img, seg_img)
 
     if overlay_img:
         assert inp_img is not None
@@ -161,7 +173,6 @@ def predict(model=None, inp=None, out_fname=None,
                                      prediction_height=prediction_height)
 
     if out_fname is not None:
-        print("outname", out_fname)
         cv2.imwrite(out_fname, seg_img)
 
     return pr
@@ -199,7 +210,7 @@ def predict_multiple(model=None, inps=None, inp_dir=None, out_dir=None,
                      show_legends=show_legends, colors=colors,
                      prediction_width=prediction_width,
                      prediction_height=prediction_height)
-
+        print(pr)
         all_prs.append(pr)
 
     return all_prs
@@ -308,3 +319,24 @@ def evaluate(model=None, inp_images=None, annotations=None,
         "mean_IU": mean_IU,
         "class_wise_IU": cl_wise_score
     }
+def predict_action(parser):
+
+    parser.add_argument("--checkpoints_path", type=str, required=True)
+    parser.add_argument("--input_path", type=str, default="", required=True)
+    parser.add_argument("--output_path", type=str, default="", required=True)
+    args = parser.parse_args()
+    def action(args):
+        input_path_extension = args.input_path.split('.')[-1]
+        if input_path_extension in ['jpg', 'jpeg', 'png']:
+            return predict(inp=args.input_path, out_fname=args.output_path,
+                           checkpoints_path=args.checkpoints_path)
+        else:
+            return predict_multiple(inp_dir=args.input_path,
+                                    out_dir=args.output_path,
+                                    checkpoints_path=args.checkpoints_path)
+    return action(args)
+
+
+if __name__ == "__main__":
+    main_parser = argparse.ArgumentParser()
+    predict_action(main_parser)

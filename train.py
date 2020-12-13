@@ -76,7 +76,8 @@ def train(model,
           augmentation_name="aug_all"):
     print("I AM HERE")
     from models.all_models import model_from_name
-    # check if user gives model name instead of the model object
+    from segnet_model import create_segnet
+    #check if user gives model name instead of the model object
     if isinstance(model, six.string_types):
         # create the model from the name
         assert (n_classes is not None), "Please provide the n_classes"
@@ -85,6 +86,9 @@ def train(model,
                 n_classes, input_height=input_height, input_width=input_width)
         else:
             model = model_from_name[model](n_classes)
+    
+    #model = create_segnet((1,input_height, input_width),n_classes)
+    model.summary()
 
     n_classes = model.n_classes
     input_height = model.input_height
@@ -131,7 +135,6 @@ def train(model,
 
     if verify_dataset:
         print("Verifying training dataset")
-        print("I AM HERE")
         verified = verify_segmentation_dataset(train_images,
                                                train_annotations,
                                                n_classes)
@@ -194,7 +197,6 @@ def train_action(parser):
     parser.add_argument("--optimizer_name", type=str, default="adam")
 
     args = parser.parse_args()
-    print(args)
     return train(model=args.model_name,
                      train_images=args.train_images,
                      train_annotations=args.train_annotations,
@@ -215,6 +217,7 @@ def train_action(parser):
                      optimizer_name=args.optimizer_name)
 
     parser.set_defaults(func=action)
+
 
 if __name__ == "__main__":
     main_parser = argparse.ArgumentParser()
