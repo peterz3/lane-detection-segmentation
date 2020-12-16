@@ -3,6 +3,7 @@ import random
 import json
 import os
 import six
+import re
 
 import cv2
 import numpy as np
@@ -41,7 +42,7 @@ def get_colored_segmentation_image(seg_arr,inp, n_classes, colors=class_colors):
     output_height = seg_arr.shape[0]
     output_width = seg_arr.shape[1]
     #seg_img = np.zeros((output_height, output_width, 3))
-    print(type(inp))
+    # print(type(inp))
     from PIL import Image
     seg_img = cv2.resize(inp, (output_width, output_height))
 
@@ -324,6 +325,7 @@ def predict_action(parser):
     parser.add_argument("--checkpoints_path", type=str, required=True)
     parser.add_argument("--input_path", type=str, default="", required=True)
     parser.add_argument("--output_path", type=str, default="", required=True)
+    parser.add_argument("--movie_path", type=str, default="", required=True)
     args = parser.parse_args()
     def action(args):
         input_path_extension = args.input_path.split('.')[-1]
@@ -336,7 +338,57 @@ def predict_action(parser):
                                     checkpoints_path=args.checkpoints_path)
     return action(args)
 
+def parse_movie(mov_name):
+    vidcap = cv2.VideoCapture(mov_name)
+    success,image = vidcap.read()
+    count = 0
+    while success:
+        cv2.imwrite("frame/frame%d.jpg" % count, cv2.resize(image, (1280,720)))     # save frame as JPEG file      
+        success,image = vidcap.read()
+        print('Read a new frame: ', success)
+        count += 1
+    col_frames = os.listdir('frame/')
+    col_frames.sort(key=lambda f: int(re.sub('\D', '', f)))
+    mov_path = []
+    for i in tqdm(col_frames):
+        img = cv2.imread('frame/'+i)
+        mov_path.append('frame/'+i)
+    return mov_path
+
+
+def predict_movie(parser):
+
+    parser.add_argument("--checkpoints_path", type=str, required=True)
+    parser.add_argument("--input_path", type=str, default="", required=True)
+    parser.add_argument("--output_path", type=str, default="", required=True)
+    parser.add_argument("--movie_path", type=str, default="", required=True)
+    args = parser.parse_args()
+    mov_path = parse_movie(args.movie_path)
+    def action(args):
+        for inp in mov_path :
+            predict(inp=inp, out_fname= "path_to_predictions/" + inp,
+                            checkpoints_path=args.checkpoints_path)
+
+    return action(args)
+
 
 if __name__ == "__main__":
-    main_parser = argparse.ArgumentParser()
-    predict_action(main_parser)
+    import json
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoints_path", type=str, required=True)
+    parser.add_argument("--input_path", type=str, default="", required=True)
+    parser.add_argument("--output_path", type=str, default="", required=True)
+    args = parser.parse_args()
+    with open('test_baseline2.txt') as json_file:
+        base = json.load(json_file)
+    with open('test_label2.txt') as json_file:
+        label = json.load(json_file)
+    new_base = []
+    new_label = []
+
+    for i in range(0, 1246):
+        new_base.append(base[i]['raw_file'])
+        new_label.append(label[i]['raw_file'])
+    ret = evaluate(inp_images=new_base, annotations=new_label,
+             checkpoints_path=args.checkpoints_path)
+    print(ret)
